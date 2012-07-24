@@ -1,4 +1,3 @@
-
 MageSh(ell) v0.2
 ================================================================================
 
@@ -30,21 +29,21 @@ USAGE
 
 BASIC EXAMPLES
 --------------------------------------------------------------------------------
-$ magesh db
-$ magesh cache flush
-$ magesh indexer catalogsearch_fulltext
+<pre>$ magesh db</pre>
+<pre>$ magesh cache flush</pre>
+<pre>$ magesh indexer catalogsearch_fulltext</pre>
 
 STDIN BOOTSTRAPPING
 --------------------------------------------------------------------------------
 > The magesh script accepts input on STDIN for bootstrapping Magento scripts.
 > Utility scripts no longer require bootstrapping libraries or includes, e.g.:
-> $ cat scripts/create-report.php | magesh
+<pre>$ cat scripts/create-report.php | magesh</pre>
 
 PREFERENCES
 --------------------------------------------------------------------------------
-The ~/.magesh file has the following available options (defaults shown):
-* debug  = 1
-* colors = 0
+> The ~/.magesh file has the following available options (defaults shown):
+> * debug  = 1
+> * colors = 0
 
 LICENSE
 --------------------------------------------------------------------------------
