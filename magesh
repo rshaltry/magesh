@@ -1,0 +1,458 @@
+#!/usr/bin/php
+<?php
+/**
+
+    MageSh(ell) v0.2
+
+    Magento Utility Shell Script
+    Ryan Shaltry, http://ryanshaltry.com
+
+    OVERVIEW
+    PHP Script for utility-based operations on a Magento instance, including
+    cache flushes, indexing, MySQL client connection, log file viewing, and
+    configuration settings.
+
+    INSTALL
+    1. Place the magesh PHP script into a directory in the $PATH
+    2. Verify magesh script is executable (755)
+    3. Verify the location of the PHP interpreter on line 1 of script
+
+    USAGE
+    $ magesh COMMAND [METHOD]
+
+    The magesh command should be run from a Magento directory instance, or
+    can be loaded one level up ('project' level) from any of the following
+    directories (listed in order of precedence): www, public_html, magento
+
+    NOTE: Run magesh with no options to view usage information.
+
+    BASIC EXAMPLES
+    $ magesh db
+    $ magesh cache flush
+    $ magesh indexer catalogsearch_fulltext
+
+    STDIN BOOTSTRAPPING
+    The magesh script accepts input on STDIN for bootstrapping Magento scripts.
+    Utility scripts no longer require bootstrapping libraries or includes, e.g.:
+    $ cat scripts/create-report.php | magesh
+
+    PREFERENCES
+    The ~/.magesh file has the following available options (defaults shown):
+    debug  = 1
+    colors = 0
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+error_reporting(E_ALL);
+ini_set('display_errors', 'On');
+
+class Cfg_Default {
+
+    const DEBUG  = 0;
+    const COLORS = 0;
+
+}
+
+class Command_Cache extends Command_Abstract {
+    var $usage = "flush                         Flush all cache
+system                        Flush system cache
+media                         Flush media/JS/CSS cache
+catalog                       Flush catalog images cache\n";
+
+    public function execute($args=array()) {
+        switch($args[0]) {
+            case 'flush':
+                Mage::app()->cleanCache();
+                Shell::output('Cache flushed successfully.', 'success');
+                break;
+            case 'system':
+                Mage::app()->getCacheInstance()->flush();
+                Shell::output('System cache flushed successfully.', 'success');
+                break;
+            case 'media':
+                Mage::getModel('core/design_package')->cleanMergedJsCss();
+                Mage::dispatchEvent('clean_media_cache_after');
+                Shell::output('Media/JS/CSS cache flushed successfully.', 'success');
+                break;
+            case 'catalog':
+                Mage::getModel('catalog/product_image')->clearCache();
+                Mage::dispatchEvent('clean_catalog_images_cache_after');
+                Shell::output('Catalog images cache flushed successfully.', 'success');
+                break;
+            default:
+                Shell::output($this->usage());
+        }
+    }
+}
+
+class Command_Db extends Command_Abstract {
+    var $usage = "connect (default)             Connect to MySQL database
+optimize                      Optimize MySQL tables\n";
+
+    public function execute($args=array()) {
+        switch($args[0]) {
+            case 'optimize':
+                try {
+                   $_read = Mage::getSingleton('core/resource')->getConnection('core/read');
+                   $_tableCount = 0;
+                   foreach($_read->fetchCol('show tables') as $_table) {
+                       Shell::output(sprintf('Optimizing table %s...', $_table), 'debug');
+                       $_read->query(sprintf('OPTIMIZE TABLE %s', $_table));
+                       $_tableCount++;
+                   }
+                }
+                catch(Exception $e) {
+                    Shell::output(sprintf('Error: %s', $e->getMessage()), 'error');
+                }
+                Shell::output(sprintf('%s MySQL tables successfully optimized.', $_tableCount), 'success');
+                break;
+            case 'db':
+            default:
+                $_ds = DIRECTORY_SEPARATOR;
+                $_config = Mage::getBaseDir('etc').$_ds.'local.xml';
+
+                Shell::output("Reading configuration data from {$_config}", 'warning');
+
+                $_xml = simplexml_load_file($_config, NULL, LIBXML_NOCDATA);
+
+                $db = array();
+                $db['host'] = $_xml->global->resources->default_setup->connection->host;
+                $db['name'] = $_xml->global->resources->default_setup->connection->dbname;
+                $db['user'] = $_xml->global->resources->default_setup->connection->username;
+                $db['pass'] = $_xml->global->resources->default_setup->connection->password;
+
+                Shell::output(sprintf("Database host: %s", $db['host']), 'debug');
+                Shell::output(sprintf("Database name: %s", $db['name']), 'debug');
+                Shell::output(sprintf("Database user: %s", preg_replace('/./', '*', $db['pass'])), 'debug');
+                Shell::output(sprintf("Database pass: %s", $db['host']), 'debug');
+
+                system("mysql -h {$db['host']} -u {$db['user']} -p{$db['pass']} {$db['name']} > `tty`");
+        }
+    }
+}
+
+class Command_Log extends Command_Abstract {
+    var $usage = "tail                          Tails all log files
+system                        Open system log in less
+exception                     Open exception log in less";
+
+    public function execute($args=array()) {
+        $_ds = DIRECTORY_SEPARATOR;
+        $_dir = Mage::getBaseDir('log');
+
+        switch($args[0]) {
+            case 'tail':
+                Shell::output(sprintf('Tailing log directory: %s', $_dir), 'debug');
+                system("tail -f {$_dir}{$_ds}* > `tty`");
+                break;
+            case system:
+                echo "less {$_dir}{$_ds}system.log";
+                system("less {$_dir}{$_ds}system.log > `tty`");
+                break;
+            case exception:
+                system("less {$_dir}{$_ds}exception.log > `tty`");
+                break;
+            default:
+                Shell::output($this->usage());
+        }
+    }
+}
+
+class Command_Indexer extends Command_Abstract {
+    var $usage;
+
+    public function execute($args=array()) {
+        $_ds     = DIRECTORY_SEPARATOR;
+        $_shell  = Mage::getBaseDir().$_ds.'shell'.$_ds;
+        $_script = 'indexer.php';
+        $_path   = $_shell.$_script;
+        $_args   = join(' ', $args);
+
+        if($_args == 'all') {
+            Shell::output(sprintf("Indexer script: %s", $_path), 'debug');
+            system("php {$_path} --reindexall > `tty`");
+        }
+        elseif($_args) {
+            Shell::output(sprintf("Indexer script: %s", $_path), 'debug');
+            system("php {$_path} --reindex {$_args} > `tty`");
+        }
+        else {
+            $_header = str_pad('all', 30)."All indexes\n";
+            return $_header . `php {$_path} info`;
+        }
+    }
+
+    public function usage() {
+        return $this->execute();
+    }
+
+}
+
+class Command_Config extends Command_Abstract {
+    var $usage = "get PATH                      Get configation value by path
+set PATH VALUE                Set configuration value by path\n";
+
+    public function execute($args) {
+        switch($args[0]) {
+            case 'set':
+                try {
+                    if(!$args[1]) {
+                        throw new Exception('Config value path not specified.');
+                    }
+                    elseif(!$args[2]) {
+                        throw new Exception(sprintf('Config value for %s not specified.', $args[1]));
+                    }
+                    Shell::output(sprintf('Path:  %s', $args[1]), 'debug');
+                    Shell::output(sprintf('Value: %s', $args[2]), 'debug');
+
+                    Mage::getModel('core/config')->saveConfig($args[1], $args[2]);
+                    Shell::output(sprintf('Config %s updated successfully.', $args[1]), 'success');
+                }
+                catch(Exception $e) {
+                    Shell::output(sprintf('Error: %s', $e->getMessage()), 'error');
+                }
+                break;
+            case 'get':
+            default:
+                try {
+                    if(!$args[1]) {
+                        throw new Exception('Config value path not specified.');
+                    }
+                    Shell::output(sprintf('Path:  %s', $args[1]), 'debug');
+                    Shell::output(sprintf('Value: %s', Mage::getStoreConfig($args[1])), 'success');
+                }
+                catch(Exception $e) {
+                    Shell::output(sprintf('Error: %s', $e->getMessage()), 'error');
+                }
+        }
+    }
+
+}
+
+class Command_Abstract {
+
+    public function usage() {
+        return ($this->usage) ? $this->usage : 'Command usage information not available.';
+    }
+
+}
+
+class Cfg {
+
+    static protected $_settings;
+
+    static function get($setting) {
+        return (isset(self::$_settings[$setting])) ? self::$_settings[$setting] : NULL;
+    }
+
+    static function set($setting, $options=array()) {
+        foreach($options as $_option) {
+            if(isset($_option)) {
+                self::$_settings[$setting] = $_option;
+                return $_option;
+            }
+        }
+    }
+
+    static function ini() {
+        $_ds = DIRECTORY_SEPARATOR;
+        if(file_exists($_SERVER['HOME'].$_ds.'.magesh')) {
+            return parse_ini_file($_SERVER['HOME'].$_ds.'.magesh');
+        }
+        return array();
+    }
+
+    static function cmd($args) {
+        $_options = array();
+        foreach($_SERVER['argv'] as $_arg) {
+            if(preg_match('/(\-+)(.*)$/', $_arg, $_option) && $_option[2]) {
+                $_options[($_option[2])] = TRUE;
+            }
+        }
+        return $_options;
+    }
+
+}
+
+class Color {
+    const RESET        = "\033[0m";
+    const BLACK        = "\033[0;30m";
+    const RED          = "\033[0;31m";
+    const GREEN        = "\033[0;32m";
+    const BROWN        = "\033[0;33m";
+    const BLUE         = "\033[0;34m";
+    const PURPLE       = "\033[0;35m";
+    const CYAN         = "\033[0;36m";
+    const LIGHT_GRAY   = "\033[0;37m";
+    const GRAY         = "\033[1;30m";
+    const LIGHT_RED    = "\033[1;31m";
+    const LIGHT_GREEN  = "\033[1;32m";
+    const YELLOW       = "\033[1;33m";
+    const LIGHT_BLUE   = "\033[1;34m";
+    const LIGHT_PURPLE = "\033[1;35m";
+    const LIGHT_CYAN   = "\033[1;36m";
+    const WHITE        = "\033[1;37m";
+
+    static function output($str=null, $color='white') {
+        $color = strtoupper($color);
+        return (constant("Color::$color")) ? constant("Color::$color") . $str . constant("Color::RESET") : $str;
+    }
+}
+
+class Shell {
+
+    protected $script;
+    protected $command;
+    protected $args;
+
+    protected $_version = "0.1";
+
+    var $commands = array('cache', 'db', 'config', 'indexer', 'log');
+
+    var $appdirs = array('www', 'public_html', 'magento');
+
+    var $usage = "\nUSAGE:   magesh COMMAND [METHOD]\n\nEXAMPLE: magesh cache flush\n";
+
+    public function run($args) {
+        $this->script  = array_shift($args);
+        $this->command = array_shift($args);
+        $this->args    = $args;
+
+        $ini = Cfg::ini();
+        $cmd = Cfg::cmd($args);
+
+        Cfg::set('debug', array(@$ini['debug'], Cfg_Default::DEBUG));
+        Cfg::set('colors', array((isset($cmd['enable-colors']) || !isset($cmd['disable-colors'])), @$ini['colors'], Cfg_Default::COLORS));
+
+        $this->welcome();
+        $this->bootstrap();
+
+        $_commandClass = 'Command_' . ucwords($this->command);
+
+        if($this->checkScriptInput()) {
+
+        }
+        elseif($this->command && class_exists($_commandClass)) {
+            $_commandObj = new $_commandClass;
+            echo $_commandObj->execute($this->args);
+        }
+        else {
+            Shell::output($this->usage, 'warning');
+            foreach($this->commands as $_command) {
+                Shell::output($_command.':', 'warning');
+                $_commandClass = 'Command_' . ucwords($_command);
+                $_commandClassObj = new $_commandClass;
+                Shell::output($_commandClassObj->usage(), 'default');
+            }
+        }
+    }
+
+    public function output($str=null, $type='default') {
+        $colors = array('default' => 'white',
+                        'success' => 'green',
+                        'error'   => 'red',
+                        'warning' => 'yellow',
+                        'debug' => 'gray');
+
+        $color = ($colors[$type]) ? $colors[$type] : $colors['default'];
+        $str  .= "\n";
+
+        echo (Cfg::get('colors')) ? Color::output($str, $color) : $str;
+    }
+
+    public function bootstrap() {
+        $_pwd = $_SERVER['PWD'];
+        $_ds  = DIRECTORY_SEPARATOR;
+
+        $_pwdCrumbs = explode($_ds, $_pwd);
+        $_pwdCrumbs[] = '';
+
+        Shell::output('Boostrapping Magento instance, please wait...', 'warning');
+
+        do {
+            array_pop($_pwdCrumbs);
+            $_mage = join($_ds, $_pwdCrumbs).$_ds;
+        } while(count($_pwdCrumbs) && !file_exists($_mage.'app'.$_ds.'Mage.php'));
+
+        if(!file_exists($_mage.'app'.$_ds.'Mage.php')) {
+            foreach($this->appdirs as $_appdir) {
+                $_path = $_SERVER['PWD'].$_ds.$_appdir.$_ds;
+                if(file_exists($_path.'app'.$_ds.'Mage.php')) {
+                    $_mage = $_path;
+                }
+            }
+        }
+
+        if(file_exists($_mage.'app'.$_ds.'Mage.php')) {
+            try {
+                require $_mage.'app'.$_ds.'Mage.php';
+
+                if(!Mage::isInstalled())
+                    die("Application is not installed yet, please complete install wizard first.");
+ 
+                Mage::app('admin')->setUseSessionInUrl(false);
+                Mage::app()->setCurrentStore(Mage_Core_Model_App::ADMIN_STORE_ID);
+
+                Shell::output(sprintf("Base directory:  %s", Mage::getBaseDir()), 'success');
+                Shell::output(sprintf("Magento version: %s %s", ucwords($this->getVersionType()), Mage::getVersion()), 'success');
+            }
+            catch(Exception $e) {
+                $this->exception('Found Magento instance, but unable to bootstrap.');
+            }
+        }
+        else {
+            $this->exception('Unable to bootstrap Magento instance.');
+        }
+    }
+
+    protected function welcome() {
+        Shell::output(sprintf('Welcome to MageSh(ell) v%s', $this->_version), 'success');
+    }
+
+    protected function checkScriptInput() {
+        stream_set_blocking(STDIN, 0);
+        $_scriptInput = null;
+        while($line = fgets(STDIN)) {
+            $_scriptInput .= $line;
+        }
+        if($_scriptInput) {
+            $_scriptInput = trim($_scriptInput);
+            if(preg_match('/^\<\?php/', $_scriptInput)) {
+                $_scriptInput = '?>' . $_scriptInput;
+            }
+            echo eval($_scriptInput);
+
+            return true;
+        }
+        return false;
+    }
+
+    protected function getVersionType() {
+        $_ds   = DIRECTORY_SEPARATOR;
+        $_base = Mage::getBaseDir('code');
+
+        return (is_dir($_base.$_ds.'core'.$_ds.'Enterprise')) ? 'enterprise' : 'community';
+    }
+
+    public function exception($exception) {
+        Shell::output($exception, 'error');
+        exit;
+    }
+
+}
+
+$shell = new Shell;
+$shell->run($argv);
