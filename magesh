@@ -318,7 +318,7 @@ class Shell {
     protected $command;
     protected $args;
 
-    protected $_version = "0.1";
+    protected $_version = "0.2";
 
     var $commands = array('cache', 'db', 'config', 'indexer', 'log');
 
