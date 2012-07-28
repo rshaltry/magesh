@@ -91,6 +91,9 @@ catalog                       Flush catalog images cache\n";
             case 'catalog':
                 Mage::getModel('catalog/product_image')->clearCache();
                 Mage::dispatchEvent('clean_catalog_images_cache_after');
+                chmod(Mage::getBaseDir() . '/media/css', 0777);
+                chmod(Mage::getBaseDir() . '/media/css_secure', 0777);
+                chmod(Mage::getBaseDir() . '/media/js', 0777);
                 Shell::output('Catalog images cache flushed successfully.', 'success');
                 break;
             case 'usage':
