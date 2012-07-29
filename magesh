@@ -262,7 +262,6 @@ EOF;
                     }
                 }
                 $response = $this->_invalidate($distid, 'css_' . time(), $paths);
-                print_r($response);
                 break;
             case 'invalidate-js':
                 $files = scandir($_dir . '/js');
@@ -272,7 +271,6 @@ EOF;
                     }
                 }
                 $response = $this->_invalidate($distid, 'js_' . time(), $paths);
-                print_r($response);
                 break;
             default:
                 echo $this->usage();
@@ -281,8 +279,18 @@ EOF;
     private function _invalidate($distid, $refid, $paths) {
         $awscf = new AmazonCloudFront();
         $response = $awscf->create_invalidation($distid, $refid, $paths);
-        echo 'Invalidation: ' . ($response->isOK() ? 'Successful' : 'Failed') . "\n";
-        echo "(Use list-invalidations to view status)\n";
+        if ($response->isOK()) {
+            echo "Id: {$response->body->Id}\n";
+            echo "Status: {$response->body->Status}\n";
+            echo "\n";
+            echo "Path\n";
+            echo "----------------------------------------------\n";
+            foreach ($response->body->InvalidationBatch->Path as $path) {
+                echo "{$path}\n";
+            }
+        } else {
+            echo "Invalidation: Failed\n";
+        }
         return $response;
     }
 }
