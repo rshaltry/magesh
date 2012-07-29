@@ -150,6 +150,143 @@ optimize                      Optimize MySQL tables\n";
     }
 }
 
+class Command_Aws extends Command_Abstract {
+    var $usage =<<<EOF
+info-invalidations dist-id inv-id  Display details about specified invalidation
+list-invalidations dist-id         List invalidations
+invalidate-css dist-id             Invalidate CSS files from CDN
+invalidate-js dist-id              Invalidate JS files from CDN
+invalidate dist-id input-file      Invalidate files from CDN using list of files
+                                   from input file (one file per line in input file)
+
+EOF;
+
+    private function setupCredentials() {
+        CFCredentials::set(array(
+
+            // Credentials for the development environment.
+            'development' => array(
+
+                // Amazon Web Services Key. Found in the AWS Security Credentials. You can also pass
+                // this value as the first parameter to a service constructor.
+                'key' => (String)Cfg::get('AWS_KEY'),
+
+                // Amazon Web Services Secret Key. Found in the AWS Security Credentials. You can also
+                // pass this value as the second parameter to a service constructor.
+                'secret' => (String)Cfg::get('AWS_SECRET'),
+
+                // This option allows you to configure a preferred storage type to use for caching by
+                // default. This can be changed later using the set_cache_config() method.
+                //
+                // Valid values are: `apc`, `xcache`, or a file system path such as `./cache` or
+                // `/tmp/cache/`.
+                'default_cache_config' => '',
+
+                // Determines which Cerificate Authority file to use.
+                //
+                // A value of boolean `false` will use the Certificate Authority file available on the
+                // system. A value of boolean `true` will use the Certificate Authority provided by the
+                // SDK. Passing a file system path to a Certificate Authority file (chmodded to `0755`)
+                // will use that.
+                //
+                // Leave this set to `false` if you're not sure.
+                'certificate_authority' => false
+            ),
+
+            // Specify a default credential set to use if there are more than one.
+            '@default' => 'development'
+        ));
+    }
+
+    public function execute($args=array()) {
+        require_once 'AWSSDKforPHP/sdk.class.php';
+        $this->setupCredentials();
+        $_ds = DIRECTORY_SEPARATOR;
+        $_dir = Mage::getBaseDir('media');
+
+        $method = (isset($args[0])) ? $args[0] : 'help';
+        $distid = $args[1];
+
+        switch($method) {
+            case 'info-invalidation':
+                $invid = $args[2];
+                $awscf = new AmazonCloudFront();
+                $response = $awscf->get_invalidation($distid, $invid);
+                if ($response->isOK()) {
+                    echo "Reference: {$response->body->InvalidationBatch->CallerReference}\n";
+                    echo "Status: {$response->body->Status}\n";
+                    echo "\n";
+                    echo "Path\n";
+                    echo "----------------------------------------------\n";
+                    foreach ($response->body->InvalidationBatch->Path as $path) {
+                        echo "{$path}\n";
+                    }
+                } else {
+                    echo "Failed listing invalidations\n";
+                }
+                break;
+            case 'list-invalidations':
+                $awscf = new AmazonCloudFront();
+                $response = $awscf->list_invalidations($distid);
+                if ($response->isOK()) {
+                    echo "Id              Status\n";
+                    foreach ($response->body->InvalidationSummary as $inv) {
+                        echo "{$inv->Id}\t{$inv->Status}\n";
+                    }
+                } else {
+                    echo "Failed listing invalidations\n";
+                }
+                break;
+            case 'invalidate':
+                $filename = $args[2];
+                $data = file_get_contents($filename);
+                $paths = explode("\n", $data);
+                for ($idx = 0; $idx < count($paths); $idx++) {
+                    if ($paths[$idx] == '') {
+                        unset($paths[$idx]);
+                    }
+                }
+                $response = $this->_invalidate($distid, 'custom_' . time(), $paths);
+                break;
+            case 'invalidate-css':
+                $files = scandir($_dir . '/css');
+                foreach ($files as $file) {
+                    if (is_file($_dir . '/css/' . $file)) {
+                        $paths[] = '/media/css/' . $file;
+                    }
+                }
+                $files = scandir($_dir . '/css_secure');
+                foreach ($files as $file) {
+                    if (is_file($_dir . '/css_secure/' . $file)) {
+                        $paths[] = '/media/css_secure/' . $file;
+                    }
+                }
+                $response = $this->_invalidate($distid, 'css_' . time(), $paths);
+                print_r($response);
+                break;
+            case 'invalidate-js':
+                $files = scandir($_dir . '/js');
+                foreach ($files as $file) {
+                    if (is_file($file)) {
+                        $paths[] = '/media/js/' . $file;
+                    }
+                }
+                $response = $this->_invalidate($distid, 'js_' . time(), $paths);
+                print_r($response);
+                break;
+            default:
+                echo $this->usage();
+        }
+    }
+    private function _invalidate($distid, $refid, $paths) {
+        $awscf = new AmazonCloudFront();
+        $response = $awscf->create_invalidation($distid, $refid, $paths);
+        echo 'Invalidation: ' . ($response->isOK() ? 'Successful' : 'Failed') . "\n";
+        echo "(Use list-invalidations to view status)\n";
+        return $response;
+    }
+}
+
 class Command_Log extends Command_Abstract {
     var $usage = "tail (default)                Tails all log files
 system                        Open system log in less
@@ -325,7 +462,7 @@ class Shell {
 
     protected $_version = "0.2";
 
-    var $commands = array('cache', 'db', 'config', 'indexer', 'log');
+    var $commands = array('cache', 'db', 'config', 'indexer', 'log', 'aws');
 
     var $appdirs = array('www', 'public_html', 'magento');
 
@@ -341,6 +478,8 @@ class Shell {
 
         Cfg::set('debug', array(@$ini['debug'], Cfg_Default::DEBUG));
         Cfg::set('colors', array((isset($cmd['enable-colors']) || !isset($cmd['disable-colors'])), @$ini['colors'], Cfg_Default::COLORS));
+        Cfg::set('AWS_KEY', array(@$ini['AWS_KEY'], ''));
+        Cfg::set('AWS_SECRET', array(@$ini['AWS_SECRET'], ''));
 
         $this->welcome();
         $this->bootstrap();
@@ -407,7 +546,7 @@ class Shell {
 
                 if(!Mage::isInstalled())
                     die("Application is not installed yet, please complete install wizard first.");
- 
+
                 Mage::app('admin')->setUseSessionInUrl(false);
                 Mage::app()->setCurrentStore(Mage_Core_Model_App::ADMIN_STORE_ID);
 
