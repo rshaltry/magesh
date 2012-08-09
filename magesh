@@ -289,6 +289,10 @@ EOF;
                 echo "{$path}\n";
             }
         } else {
+            if (Cfg::get('debug')) {
+                echo "Refid: $refid\n";
+                echo 'Paths: ' . print_r($paths, true) . "\n";
+            }
             echo "Invalidation: Failed\n";
         }
         return $response;
