@@ -266,7 +266,7 @@ EOF;
             case 'invalidate-js':
                 $files = scandir($_dir . '/js');
                 foreach ($files as $file) {
-                    if (is_file($file)) {
+                    if (is_file($_dir . '/js/' . $file)) {
                         $paths[] = '/media/js/' . $file;
                     }
                 }
