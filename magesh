@@ -566,11 +566,11 @@ class Shell {
                 Shell::output(sprintf("Magento version: %s %s", ucwords($this->getVersionType()), Mage::getVersion()), 'success');
             }
             catch(Exception $e) {
-                $this->exception('Found Magento instance, but unable to bootstrap.');
+                $this->exception('Found Magento instance, but unable to bootstrap.', $e);
             }
         }
         else {
-            $this->exception('Unable to bootstrap Magento instance.');
+            $this->exception('Unable to bootstrap Magento instance.', $e);
         }
     }
 
@@ -603,8 +603,11 @@ class Shell {
         return (is_dir($_base.$_ds.'core'.$_ds.'Enterprise')) ? 'enterprise' : 'community';
     }
 
-    public function exception($exception) {
+    public function exception($exception, $e = null) {
         Shell::output($exception, 'error');
+        if ($e && Cfg::get('debug')) {
+            var_dump($e);
+        }
         exit;
     }
 
