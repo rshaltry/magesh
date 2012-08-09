@@ -6,6 +6,7 @@
 
     Magento Utility Shell Script
     Ryan Shaltry, http://ryanshaltry.com
+    Joe Constant, http://joeconstant.me
 
     OVERVIEW
     PHP Script for utility-based operations on a Magento instance, including
@@ -16,6 +17,10 @@
     1. Place the magesh PHP script into a directory in the $PATH
     2. Verify magesh script is executable (755)
     3. Verify the location of the PHP interpreter on line 1 of script
+    4. [Optional] Install AWS PHP SDK (To use aws functions)
+
+        sudo pear channel-discover pear.amazonwebservices.com
+        sudo pear install aws/sdk
 
     USAGE
     $ magesh COMMAND [METHOD]
@@ -38,9 +43,12 @@
 
     PREFERENCES
     The ~/.magesh file has the following available options (defaults shown):
-    debug  = 1
+    debug = 1
     colors = 0
+    AWS_KEY = (Amazon Web Services Key. Found in the AWS Security Credentials)
+    AWS_SECRET = (Amazon Web Services Secret Key. Found in the AWS Security Credentials)
 
+    LICENSE
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
