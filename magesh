@@ -2,7 +2,7 @@
 <?php
 /**
 
-    MageSh(ell) v0.2
+    MageSh(ell) v0.3
 
     Magento Utility Shell Script
     Ryan Shaltry, http://ryanshaltry.com
@@ -494,7 +494,7 @@ class Shell {
 
     protected $_version = '0.3';
 
-    var $commands = array('cache', 'db', 'config', 'indexer', 'log', 'aws', 'self-update');
+    var $commands = array('cache', 'db', 'config', 'indexer', 'log', 'aws');
 
     var $appdirs = array('www', 'public_html', 'magento');
 
@@ -532,6 +532,7 @@ class Shell {
         }
         else {
             Shell::output($this->usage, 'warning');
+            Shell::output("self-update                   Check for updates\n", 'default');
             foreach($this->commands as $_command) {
                 Shell::output($_command.':', 'warning');
                 $_commandClass = 'Command_' . ucwords($_command);
