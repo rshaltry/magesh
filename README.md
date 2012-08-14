@@ -1,4 +1,4 @@
-MageSh(ell) v0.2
+MageSh(ell) v0.3
 ================================================================================
 
 Magento Utility Shell Script
@@ -31,6 +31,10 @@ USAGE
 > directories (listed in order of precedence): www, public_html, magento
 >
 > NOTE: Run magesh with no options to view usage information.
+>
+> To ensure you are running the latest version, use
+
+        magesh self-update
 
 BASIC EXAMPLES
 --------------------------------------------------------------------------------
