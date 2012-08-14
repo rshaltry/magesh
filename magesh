@@ -578,7 +578,7 @@ class Shell {
             }
         }
         else {
-            $this->exception('Unable to bootstrap Magento instance.', $e);
+            $this->exception('Unable to bootstrap Magento instance.');
         }
     }
 
