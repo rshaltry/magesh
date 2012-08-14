@@ -492,9 +492,9 @@ class Shell {
     protected $command;
     protected $args;
 
-    protected $_version = "0.2";
+    protected $_version = '0.3';
 
-    var $commands = array('cache', 'db', 'config', 'indexer', 'log', 'aws');
+    var $commands = array('cache', 'db', 'config', 'indexer', 'log', 'aws', 'self-update');
 
     var $appdirs = array('www', 'public_html', 'magento');
 
@@ -516,6 +516,11 @@ class Shell {
         $this->welcome();
         $this->bootstrap();
 
+        if ($this->command == 'self-update') {
+            $this->selfUpdate();
+            return;
+        }
+
         $_commandClass = 'Command_' . ucwords($this->command);
 
         if($this->checkScriptInput()) {
@@ -533,6 +538,44 @@ class Shell {
                 $_commandClassObj = new $_commandClass;
                 Shell::output($_commandClassObj->usage(), 'default');
             }
+        }
+    }
+
+    public function selfUpdate() {
+        $versionurl  = 'http://magesh.joeconstant.me/version';
+
+        $ch = curl_init($versionurl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $latest = chop(curl_exec($ch));
+        curl_close($ch);
+
+        if ($this->_version !== $latest) {
+            Shell::output(sprintf("Updating to version %s.", $latest), 'default');
+
+            $remoteFilename = 'http://magesh.joeconstant.me/magesh';
+            $localFilename = $_SERVER['argv'][0];
+            $tempFilename = basename($localFilename).'.temp';
+
+            try {
+                $ch = curl_init($remoteFilename);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $data = curl_exec($ch);
+                if (!strlen(trim($data))) {
+                    throw new Exception('No data');
+                }
+                curl_close($ch);
+                file_put_contents($tempFilename, $data);
+
+                chmod($tempFilename, 0755 & ~umask());
+
+                rename($tempFilename, $localFilename);
+            } catch (Exception $e) {
+                unlink($tempFilename);
+                Shell::output('The download is corrupt ('.$e->getMessage().').', 'warning');
+                Shell::output('Please re-run the self-update command to try again.', 'warning');
+            }
+        } else {
+            Shell::output("You are using the latest magesh version.", 'default');
         }
     }
 
