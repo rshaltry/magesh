@@ -75,10 +75,13 @@ class Cfg_Default {
 }
 
 class Command_Cache extends Command_Abstract {
-    var $usage = "flush                         Flush all cache
+    var $usage =<<<EOF
+flush                         Flush all cache
 system                        Flush system cache
 media                         Flush media/JS/CSS cache
-catalog                       Flush catalog images cache\n";
+catalog                       Flush catalog images cache
+
+EOF;
 
     public function execute($args=array()) {
         $method = (isset($args[0])) ? $args[0] : 'usage';
@@ -112,8 +115,11 @@ catalog                       Flush catalog images cache\n";
 }
 
 class Command_Db extends Command_Abstract {
-    var $usage = "connect (default)             Connect to MySQL database
-optimize                      Optimize MySQL tables\n";
+    var $usage =<<<EOF
+connect (default)             Connect to MySQL database
+optimize                      Optimize MySQL tables
+
+EOF;
 
     public function execute($args=array()) {
         $method = (isset($args[0])) ? $args[0] : 'connect';
@@ -308,9 +314,12 @@ EOF;
 }
 
 class Command_Log extends Command_Abstract {
-    var $usage = "tail (default)                Tails all log files
+    var $usage =<<<EOF
+tail (default)                Tails all log files
 system                        Open system log in less
-exception                     Open exception log in less";
+exception                     Open exception log in less
+
+EOF;
 
     public function execute($args=array()) {
         $_ds = DIRECTORY_SEPARATOR;
@@ -363,8 +372,11 @@ class Command_Indexer extends Command_Abstract {
 }
 
 class Command_Config extends Command_Abstract {
-    var $usage = "get PATH                      Get configation value by path
-set PATH VALUE                Set configuration value by path\n";
+    var $usage =<<<EOF
+get PATH                      Get configation value by path
+set PATH VALUE                Set configuration value by path
+
+EOF;
 
     public function execute($args) {
         $method = (isset($args[0])) ? $args[0] : 'get';
