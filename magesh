@@ -2,7 +2,7 @@
 <?php
 /**
 
-    MageSh(ell) v0.3
+    MageSh(ell) v0.3.1
 
     Magento Utility Shell Script
     Ryan Shaltry, http://ryanshaltry.com
@@ -156,10 +156,15 @@ EOF;
 
                 Shell::output(sprintf("Database host: %s", $db['host']), 'debug');
                 Shell::output(sprintf("Database name: %s", $db['name']), 'debug');
-                Shell::output(sprintf("Database user: %s", preg_replace('/./', '*', $db['pass'])), 'debug');
-                Shell::output(sprintf("Database pass: %s", $db['host']), 'debug');
+                Shell::output(sprintf("Database user: %s", $db['user']), 'debug');
 
-                system("mysql -h {$db['host']} -u {$db['user']} -p{$db['pass']} {$db['name']} > `tty`");
+                $_password = null;
+                if(strlen($db['pass'])) {
+                    Shell::output(sprintf("Database pass: %s", preg_replace('/./', '*', $db['pass'])), 'debug');
+                    $_password = sprintf('-p%s', $db['pass']);
+                }
+
+                system("mysql -h {$db['host']} -u {$db['user']} {$_password} {$db['name']} > `tty`");
         }
     }
 }
@@ -492,7 +497,7 @@ class Shell {
     protected $command;
     protected $args;
 
-    protected $_version = '0.3';
+    protected $_version = '0.3.1';
 
     var $commands = array('cache', 'db', 'config', 'indexer', 'log', 'aws');
 
@@ -600,7 +605,7 @@ class Shell {
         $_pwdCrumbs = explode($_ds, $_pwd);
         $_pwdCrumbs[] = '';
 
-        Shell::output('Boostrapping Magento instance, please wait...', 'warning');
+        Shell::output('Bootstrapping Magento instance, please wait...', 'warning');
 
         do {
             array_pop($_pwdCrumbs);
