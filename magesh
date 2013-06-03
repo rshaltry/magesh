@@ -169,7 +169,6 @@ EOF;
 class Command_Db extends Command_Abstract {
     var $usage =<<<EOF
 connect (default)             Connect to MySQL database
-sync                          Syncronize remote database to local
 optimize                      Optimize MySQL tables
 
 EOF;
@@ -194,91 +193,6 @@ EOF;
                     Shell::output(sprintf('Error: %s', $e->getMessage()), 'error');
                 }
                 Shell::output(sprintf('%s MySQL tables successfully optimized.', $_tableCount), 'success');
-                break;
-            case 'sync':
-                $_host = trim(readline('Enter remote user/host (e.g. magento@cldev01.alpineincdev.com): '));
-                $_dir  = trim(readline('    Enter remote magento instance directory (DEFAULT: magento): '));
-                $_dir  = (strlen($_dir)) ? $_dir : 'magento';
-                $_cmd  = sprintf('ssh %s cat %s/app/etc/local.xml', $_host, $_dir);
-
-                try {
-                    $_cfg = `$_cmd`;
-                }
-                catch (Exception $e) {
-                    Shell::output('Unable to retrieve remote Magento configuration.', 'error');
-                }
-
-                $_xml = simplexml_load_string($_cfg, NULL, LIBXML_NOCDATA);
-
-                $db = array();
-                $db['host'] = $_xml->global->resources->default_setup->connection->host;
-                $db['name'] = $_xml->global->resources->default_setup->connection->dbname;
-                $db['user'] = $_xml->global->resources->default_setup->connection->username;
-                $db['pass'] = $_xml->global->resources->default_setup->connection->password;
-
-                try {
-                    $_file = sprintf('%s-%s.mysql', $db['name'], date('Ymd-Hi'));
-                    $_cmd = sprintf("ssh %s mysqldump -h %s -u %s -p'%s' %s > %s", $_host, $db['host'], $db['user'], $db['pass'], $db['name'], $_file);
-
-                    Shell::output(sprintf('Exporting remote database to %s...', $_file), 'debug');
-
-                    $_export = `$_cmd`;
-                }
-                catch (Exception $e) {
-                    Shell::output(sprintf('Unable to export remote database to %s.', $_file), 'error');
-                }
-
-                Shell::output('Reading current configuration...', 'debug');
-                $_urls = array();
-                for($i=0;$i<=10;$i++) {
-                    $_args = array('get', 'web/unsecure/base_url', $i);
-                    if(Command_Config::execute($_args)) {
-                        $_unsecure = Command_Config::execute(array('get', 'web/unsecure/base_url', $i));
-                        $_secure = Command_Config::execute(array('get', 'web/secure/base_url', $i));
-                        $_urls[] = array('store' => $i, 'unsecure' => $_unsecure, 'secure' => $_secure);
-                    }
-                }
-
-                Shell::output('Importing database...', 'success');
-
-                try {
-                    $_mysql = self::command();
-                    $_cmd = sprintf('%s < %s', $_mysql, $_file);
-                    $_import = `$_cmd`;
-                }
-                catch (Exception $e) {
-                    Shell::output(sprintf('Unable to import database using %s.', $_mysql), 'error');
-                }
-
-                Shell::output('Updating base_url settings...', 'success');
-                if(count($_urls)) {
-                    foreach($_urls as $_url) {
-                        if($_url['unsecure']) {
-                            Shell::output(sprintf('Setting unsecure base_url to %s for store %s.', $_url['unsecure'], $_url['store']), 'success');
-                            Command_Config::execute(array('set', 'web/unsecure/base_url', $_url['unsecure'], $_url['store']));
-                        }
-                        if($_url['secure']) {
-                            Shell::output(sprintf('Setting secure base_url to %s for store %s.', $_url['unsecure'], $_url['store']), 'success');
-                            Command_Config::execute(array('set', 'web/secure/base_url', $_url['secure'], $_url['store']));
-                        }
-                    }
-                }
-
-                Shell::output('Updating development settings settings...', 'success');
-                // google analytics
-                // ssl
-                // order confirmation emails
-                // auth.net test mode
-
-                Shell::output('Compressing database export...', 'debug');
-
-                try {
-                    system(sprintf('gzip %s', $_file));
-                }
-                catch (Exception $e) {
-                    Shell::output(sprintf('Unable to compress database export (%s).', $_file), 'error');
-                }
-
                 break;
             case 'connect':
             default:
