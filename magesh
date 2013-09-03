@@ -2,7 +2,7 @@
 <?php
 /**
 
-    MageSh(ell) v0.3.2
+    MageSh(ell) v0.3.3
 
     Magento Utility Shell Script
     Ryan Shaltry, http://ryanshaltry.com
@@ -575,7 +575,7 @@ class Shell {
     protected $command;
     protected $args;
 
-    protected $_version = '0.3.2';
+    protected $_version = '0.3.3';
 
     var $commands = array('cache', 'cron', 'db', 'config', 'indexer', 'log', 'aws');
 
@@ -626,7 +626,7 @@ class Shell {
     }
 
     public function selfUpdate() {
-        $versionurl  = 'http://magesh.joeconstant.me/version';
+        $versionurl  = 'http://magesh.com/version';
 
         $ch = curl_init($versionurl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -636,7 +636,7 @@ class Shell {
         if ($this->_version !== $latest) {
             Shell::output(sprintf("Updating to version %s.", $latest), 'default');
 
-            $remoteFilename = 'http://magesh.joeconstant.me/magesh';
+            $remoteFilename = 'http://magesh.com/magesh';
             $localFilename = $_SERVER['argv'][0];
             $tempFilename = basename($localFilename).'.temp';
 
